@@ -1,0 +1,212 @@
+import hre from "hardhat";
+
+// Helper functions
+const tokens = (n) => {
+  return hre.ethers.parseUnits(n.toString(), 'ether');
+};
+
+const wait = (seconds) => {
+  const milliseconds = seconds * 1000;
+  return new Promise(resolve => setTimeout(resolve, milliseconds));
+};
+
+// Ethers.js v6 Event Parser Helper
+function parseOrderEvent(receipt, exchangeInterface) {
+  for (const log of receipt.logs) {
+    try {
+      const parsedLog = exchangeInterface.parseLog(log);
+      if (parsedLog && parsedLog.name === "Order") {
+        // In v6, args is an array, not an object
+        return Number(parsedLog.args[0]); // id is first argument
+      }
+    } catch (e) {
+      // Not an Order event, skip
+    }
+  }
+  return null;
+}
+
+async function main() {
+  console.log("🌱 Seeding exchange with test data...\n");
+
+  // Fetch accounts from wallet
+  const accounts = await hre.ethers.getSigners();
+  console.log(`Found ${accounts.length} accounts\n`);
+
+  // Fetch network
+  const network = await hre.ethers.provider.getNetwork();
+  const chainId = Number(network.chainId);
+  console.log("Using chainId:", chainId);
+
+  // Import deployed addresses from Ignition
+  // In ES modules, use import() for JSON
+  const deployment = await import(
+    `../ignition/deployments/chain-${chainId}/deployed_addresses.json`,
+    { assert: { type: 'json' } }
+  ).then(module => module.default);
+  
+  // Get contract addresses from deployment
+  const DAPP_ADDRESS = deployment["ExchangeModule#uron"];
+  const METH_ADDRESS = deployment["ExchangeModule#meth"];
+  const MDAI_ADDRESS = deployment["ExchangeModule#mdai"];
+  const EXCHANGE_ADDRESS = deployment["ExchangeModule#exchange"];
+
+  console.log("Contract addresses:");
+  console.log(`DAPP Token: ${DAPP_ADDRESS}`);
+  console.log(`mETH Token: ${METH_ADDRESS}`);
+  console.log(`mDAI Token: ${MDAI_ADDRESS}`);
+  console.log(`Exchange:   ${EXCHANGE_ADDRESS}\n`);
+
+  // Fetch deployed contracts
+  const DApp = await hre.ethers.getContractAt('Token', DAPP_ADDRESS);
+  const mETH = await hre.ethers.getContractAt('Token', METH_ADDRESS);
+  const mDAI = await hre.ethers.getContractAt('Token', MDAI_ADDRESS);
+  const exchange = await hre.ethers.getContractAt('Exchange', EXCHANGE_ADDRESS);
+
+  // Create interface for event parsing
+  const exchangeInterface = hre.ethers.Interface.from([
+    "event Order(uint256 id, address user, address tokenGet, uint256 amountGet, address tokenGive, uint256 amountGive, uint256 timestamp)",
+    "event Cancel(uint256 id, address user, address tokenGet, uint256 amountGet, address tokenGive, uint256 amountGive, uint256 timestamp)",
+    "event Trade(uint256 id, address user, address tokenGet, uint256 amountGet, address tokenGive, uint256 amountGive, address creator, uint256 timestamp)"
+  ]);
+
+  // Give tokens to account[1]
+  const sender = accounts[0];
+  const receiver = accounts[1];
+  let amount = tokens(10000);
+
+  console.log("📤 Transferring tokens between accounts...");
+  
+  // Transfer mETH from account0 to account1
+  let transaction = await mETH.connect(sender).transfer(receiver.address, amount);
+  await transaction.wait();
+  console.log(`✓ Transferred ${hre.ethers.formatEther(amount)} mETH from ${sender.address} to ${receiver.address}`);
+
+  // Set up exchange users
+  const user1 = accounts[0];
+  const user2 = accounts[1];
+  amount = tokens(10000);
+
+  console.log("\n💰 Setting up deposits on exchange...");
+  
+  // User1 approves and deposits DAPP
+  transaction = await DApp.connect(user1).approve(EXCHANGE_ADDRESS, amount);
+  await transaction.wait();
+  console.log(`✓ Approved ${hre.ethers.formatEther(amount)} DAPP tokens from ${user1.address}`);
+
+  transaction = await exchange.connect(user1).depositToken(DAPP_ADDRESS, amount);
+  await transaction.wait();
+  console.log(`✓ Deposited ${hre.ethers.formatEther(amount)} DAPP from ${user1.address}`);
+
+  // User2 approves and deposits mETH
+  transaction = await mETH.connect(user2).approve(EXCHANGE_ADDRESS, amount);
+  await transaction.wait();
+  console.log(`✓ Approved ${hre.ethers.formatEther(amount)} mETH tokens from ${user2.address}`);
+
+  transaction = await exchange.connect(user2).depositToken(METH_ADDRESS, amount);
+  await transaction.wait();
+  console.log(`✓ Deposited ${hre.ethers.formatEther(amount)} mETH from ${user2.address}`);
+
+  console.log("\n🔄 Creating and filling orders...");
+
+  // Seed a Cancelled Order
+  console.log("\n❌ Creating and cancelling an order...");
+  transaction = await exchange.connect(user1).createOrder(METH_ADDRESS, tokens(100), DAPP_ADDRESS, tokens(5));
+  let receipt = await transaction.wait();
+  
+  // Parse the Order event using v6 method
+  const firstOrderId = parseOrderEvent(receipt, exchangeInterface);
+  console.log(`✓ Created order ${firstOrderId} from ${user1.address}`);
+
+  transaction = await exchange.connect(user1).cancelOrder(firstOrderId);
+  await transaction.wait();
+  console.log(`✓ Cancelled order ${firstOrderId}`);
+
+  await wait(1);
+
+  // Seed Filled Orders
+  console.log("\n✅ Creating and filling orders...");
+  
+  // Order 2
+  transaction = await exchange.connect(user1).createOrder(METH_ADDRESS, tokens(100), DAPP_ADDRESS, tokens(10));
+  receipt = await transaction.wait();
+  const orderId2 = parseOrderEvent(receipt, exchangeInterface);
+  console.log(`✓ Created order ${orderId2}`);
+  
+  transaction = await exchange.connect(user2).fillOrder(orderId2);
+  await transaction.wait();
+  console.log(`✓ Filled order ${orderId2}`);
+  await wait(1);
+
+  // Order 3
+  transaction = await exchange.connect(user1).createOrder(METH_ADDRESS, tokens(50), DAPP_ADDRESS, tokens(15));
+  receipt = await transaction.wait();
+  const orderId3 = parseOrderEvent(receipt, exchangeInterface);
+  console.log(`✓ Created order ${orderId3}`);
+  
+  transaction = await exchange.connect(user2).fillOrder(orderId3);
+  await transaction.wait();
+  console.log(`✓ Filled order ${orderId3}`);
+  await wait(1);
+
+  // Order 4
+  transaction = await exchange.connect(user1).createOrder(METH_ADDRESS, tokens(200), DAPP_ADDRESS, tokens(20));
+  receipt = await transaction.wait();
+  const orderId4 = parseOrderEvent(receipt, exchangeInterface);
+  console.log(`✓ Created order ${orderId4}`);
+  
+  transaction = await exchange.connect(user2).fillOrder(orderId4);
+  await transaction.wait();
+  console.log(`✓ Filled order ${orderId4}`);
+  await wait(1);
+
+  console.log("\n📊 Creating open orders...");
+
+  // User1 makes buy orders
+  console.log("\n📈 User1 creating buy orders...");
+  for(let i = 1; i <= 3; i++) {
+    transaction = await exchange.connect(user1).createOrder(METH_ADDRESS, tokens(10 * i), DAPP_ADDRESS, tokens(10));
+    receipt = await transaction.wait();
+    const orderId = parseOrderEvent(receipt, exchangeInterface);
+    console.log(`✓ Created buy order ${orderId} (${i} of 3)`);
+    await wait(0.5);
+  }
+
+  // User2 makes sell orders
+  console.log("\n📉 User2 creating sell orders...");
+  for (let i = 1; i <= 3; i++) {
+    transaction = await exchange.connect(user2).createOrder(DAPP_ADDRESS, tokens(10), METH_ADDRESS, tokens(10 * i));
+    receipt = await transaction.wait();
+    const orderId = parseOrderEvent(receipt, exchangeInterface);
+    console.log(`✓ Created sell order ${orderId} (${i} of 3)`);
+    await wait(0.5);
+  }
+
+  console.log("\n🎉 Exchange seeded successfully!");
+  console.log("\n📊 Final Balances on Exchange:");
+  
+  const user1DAPPBalance = await exchange.balanceOf(DAPP_ADDRESS, user1.address);
+  const user1METHBalance = await exchange.balanceOf(METH_ADDRESS, user1.address);
+  const user2DAPPBalance = await exchange.balanceOf(DAPP_ADDRESS, user2.address);
+  const user2METHBalance = await exchange.balanceOf(METH_ADDRESS, user2.address);
+  
+  console.log(`User1 (${user1.address}):`);
+  console.log(`  DAPP: ${hre.ethers.formatEther(user1DAPPBalance)}`);
+  console.log(`  mETH: ${hre.ethers.formatEther(user1METHBalance)}`);
+  
+  console.log(`\nUser2 (${user2.address}):`);
+  console.log(`  DAPP: ${hre.ethers.formatEther(user2DAPPBalance)}`);
+  console.log(`  mETH: ${hre.ethers.formatEther(user2METHBalance)}`);
+
+  const feeAccount = await exchange.feeAccount();
+  const orderCount = await exchange.orderCount();
+  console.log(`\n💰 Exchange feeAccount: ${feeAccount}`);
+  console.log(`📊 Total orders created: ${orderCount}`);
+}
+
+main()
+  .then(() => process.exit(0))
+  .catch((error) => {
+    console.error("❌ Error seeding exchange:", error);
+    process.exit(1);
+  });
