@@ -16,7 +16,7 @@ contract Token{
     constructor(string memory _name, string memory _symbol,  uint256 _totalSupply){
         name = _name;
         symbol = _symbol;
-        totalSupply = _totalSupply;
+        totalSupply = _totalSupply * (10 ** decimals);
         balanceOf[msg.sender] = totalSupply;
     }  
     
