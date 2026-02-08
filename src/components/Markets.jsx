@@ -7,12 +7,22 @@ import { loadTokens } from '../store/interactions'
 const Markets = () => {
   const provider = useSelector(state => state.provider.connection)
   const chainId = useSelector(state => state.provider.chainId)
+  const account = useSelector(state => state.provider.account)
 
   const dispatch = useDispatch()
 
   const marketHandler = async (e) => {
+    if (!account) {
+      alert('Please connect your wallet first!')
+      return
+    }
+    
     const addresses = e.target.value.split(',')
-    loadTokens(provider, addresses, dispatch)
+    try {
+      await loadTokens(provider, addresses, dispatch)
+    } catch (error) {
+      alert(`Error loading market: ${error.message}`)
+    }
   }
 
   // Check if network has deployed contracts
@@ -23,10 +33,9 @@ const Markets = () => {
     const mETH = config[chainId]?.mETH
     const mDAI = config[chainId]?.mDAI
     
-    // Check if addresses are not empty
-    return uron?.address && uron.address.length > 0 &&
-           mETH?.address && mETH.address.length > 0 &&
-           mDAI?.address && mDAI.address.length > 0
+    return uron?.address && uron.address.trim() !== '' &&
+           mETH?.address && mETH.address.trim() !== '' &&
+           mDAI?.address && mDAI.address.trim() !== ''
   }
 
   return(
@@ -35,9 +44,8 @@ const Markets = () => {
         <h2>Select Market</h2>
       </div>
 
-      {chainId && config[chainId] && hasDeployedContracts() ? (
+      {chainId && config[chainId] && hasDeployedContracts() && account ? (
         <select name="markets" id="markets" onChange={marketHandler}>
-          {/* Use URON instead of DApp */}
           <option value={`${config[chainId].URON.address},${config[chainId].mETH.address}`}>
             URON / mETH
           </option>
@@ -45,12 +53,22 @@ const Markets = () => {
             URON / mDAI
           </option>
         </select>
+      ) : !account ? (
+        <div>
+          <p style={{ color: '#767F92', textAlign: 'center' }}>
+            Connect wallet to select market
+          </p>
+        </div>
+      ) : !hasDeployedContracts() ? (
+        <div>
+          <p style={{ color: '#FFA726', textAlign: 'center' }}>
+            Contracts not deployed on this network
+          </p>
+        </div>
       ) : (
         <div>
-          <p style={{ color: '#FF6B6B', textAlign: 'center' }}>
-            {chainId && config[chainId] 
-              ? 'Contracts not deployed on this network'
-              : 'Select a network to trade'}
+          <p style={{ color: '#767F92', textAlign: 'center' }}>
+            Select a network to trade
           </p>
         </div>
       )}
@@ -60,4 +78,4 @@ const Markets = () => {
   )
 }
 
-export default Markets;
+export default Markets
