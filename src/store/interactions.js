@@ -1,6 +1,6 @@
 import { ethers } from 'ethers'
-import TOKEN_ABI from '../abis/Token.json';
-import EXCHANGE_ABI from '../abis/Exchange.json';
+import TOKEN_ABI from '../abis/Token.abi.json';
+import EXCHANGE_ABI from '../abis/Exchange.abi.json';
 
 export const loadProvider = (dispatch) => {
   const connection = new ethers.BrowserProvider(window.ethereum)

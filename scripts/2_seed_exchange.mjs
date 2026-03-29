@@ -27,7 +27,7 @@ async function main() {
   // Import deployed addresses from Ignition
   const deploymentPath = join(process.cwd(), `ignition/deployments/chain-${chainId}/deployed_addresses.json`);
   const deployment = JSON.parse(readFileSync(deploymentPath, 'utf8'));
-  
+
   // Get contract addresses from deployment
   const URON_ADDRESS = deployment["ExchangeModule#uron"];
   const METH_ADDRESS = deployment["ExchangeModule#meth"];
@@ -52,7 +52,7 @@ async function main() {
   let amount = tokens(10000);
 
   console.log("📤 Transferring tokens between accounts...");
-  
+
   // Transfer mETH from account0 to account1
   let transaction = await mETH.connect(sender).transfer(receiver.address, amount);
   await transaction.wait();
@@ -64,7 +64,7 @@ async function main() {
   amount = tokens(10000);
 
   console.log("\n💰 Setting up deposits on exchange...");
-  
+
   // User1 approves and deposits URON
   transaction = await URON.connect(user1).approve(EXCHANGE_ADDRESS, amount);
   await transaction.wait();
@@ -98,17 +98,17 @@ async function main() {
   await transaction.wait();
   console.log(`✓ Cancelled order ${orderId}`);
   orderId++;  // Increment for next order
-  
+
   await wait(1);
 
   // Seed Filled Orders
   console.log("\n✅ Creating and filling orders...");
-  
+
   // Order 2
   transaction = await exchange.connect(user1).createOrder(METH_ADDRESS, tokens(100), URON_ADDRESS, tokens(10));
   await transaction.wait();
   console.log(`✓ Created order ${orderId}`);
-  
+
   transaction = await exchange.connect(user2).fillOrder(orderId);
   await transaction.wait();
   console.log(`✓ Filled order ${orderId}`);
@@ -119,7 +119,7 @@ async function main() {
   transaction = await exchange.connect(user1).createOrder(METH_ADDRESS, tokens(50), URON_ADDRESS, tokens(15));
   await transaction.wait();
   console.log(`✓ Created order ${orderId}`);
-  
+
   transaction = await exchange.connect(user2).fillOrder(orderId);
   await transaction.wait();
   console.log(`✓ Filled order ${orderId}`);
@@ -130,7 +130,7 @@ async function main() {
   transaction = await exchange.connect(user1).createOrder(METH_ADDRESS, tokens(200), URON_ADDRESS, tokens(20));
   await transaction.wait();
   console.log(`✓ Created order ${orderId}`);
-  
+
   transaction = await exchange.connect(user2).fillOrder(orderId);
   await transaction.wait();
   console.log(`✓ Filled order ${orderId}`);
@@ -141,7 +141,7 @@ async function main() {
 
   // User1 makes 10 buy orders (reduced to 5 for speed)
   console.log("\n📈 User1 creating 5 buy orders...");
-  for(let i = 1; i <= 5; i++) {
+  for (let i = 1; i <= 5; i++) {
     transaction = await exchange.connect(user1).createOrder(METH_ADDRESS, tokens(10 * i), URON_ADDRESS, tokens(10));
     await transaction.wait();
     console.log(`✓ Created buy order ${orderId} (${i} of 5)`);
@@ -160,7 +160,7 @@ async function main() {
   }
 
   console.log("\n🎉 Exchange seeded successfully!");
-  
+
   // Try to get final order count (might fail, that's okay)
   try {
     const finalOrderCount = await exchange.orderCount();
@@ -168,23 +168,30 @@ async function main() {
   } catch (error) {
     console.log(`📊 Our tracked order count: ${orderId - 1}`);
   }
-  
+
   // console.log("\n💰 Exchange feeAccount:", await exchange.feeAccount());
-  console.log(`📈 Fee percent: ${await exchange.feePercent()}%`);
-  
+  // Instead of trying to read feePercent, just log what we know
+
+  // Or with error handling:
+  try {
+    const feePct = await exchange.feePercent();
+    console.log(`📈 Fee percent: ${feePct}%`);
+  } catch (error) {
+    console.log(`📈 Fee percent: 10% (using constructor value)`);
+  }
   // Show final balances
   console.log("\n📊 Final Balances on Exchange:");
-  
+
   try {
     const user1URONBalance = await exchange.balanceOf(URON_ADDRESS, user1.address);
     const user1METHBalance = await exchange.balanceOf(METH_ADDRESS, user1.address);
     const user2URONBalance = await exchange.balanceOf(URON_ADDRESS, user2.address);
     const user2METHBalance = await exchange.balanceOf(METH_ADDRESS, user2.address);
-    
+
     console.log(`User1 (${user1.address}):`);
     console.log(`  URON: ${hre.ethers.formatEther(user1URONBalance)}`);
     console.log(`  mETH: ${hre.ethers.formatEther(user1METHBalance)}`);
-    
+
     console.log(`\nUser2 (${user2.address}):`);
     console.log(`  URON: ${hre.ethers.formatEther(user2URONBalance)}`);
     console.log(`  mETH: ${hre.ethers.formatEther(user2METHBalance)}`);
@@ -200,4 +207,4 @@ main()
     process.exit(1);
   });
 
-  //  0fdb21099bec7ae0042dedd1acc6e6ecb1169416fa0f1579adb1711f8a2830d7
+//  0fdb21099bec7ae0042dedd1acc6e6ecb1169416fa0f1579adb1711f8a2830d7
