@@ -9,14 +9,16 @@ import {
   loadAccount,
   loadTokens,
   loadExchange,
-  loadBalances
+  loadBalances,
+  loadAllOrders,     // ADDED THIS
+  subscribeToEvents  // ADDED THIS
 } from '../store/interactions';
 
 import Navbar from './Navbar'
 import Markets from './Markets'
 import Balance from './Balance'
-
-
+import Order from './Order'         // ADDED THIS
+import OrderBook from './Orderbook'; // ADDED THIS
 
 function App() {
   const dispatch = useDispatch()
@@ -95,6 +97,15 @@ function App() {
         if (loadedExchange && loadedTokens && loadedTokens[0] && loadedTokens[1] && account) {
           await loadBalances(loadedExchange, loadedTokens, account, dispatch)
         }
+
+        // ==========================================
+        // ADDED: Load Orders and Subscribe to Events
+        // ==========================================
+        if (loadedExchange) {
+          await loadAllOrders(provider, loadedExchange, dispatch)
+          subscribeToEvents(loadedExchange, dispatch)
+        }
+
       } else {
         console.warn('Exchange address not found in config')
       }
@@ -278,16 +289,19 @@ function App() {
       <main className='exchange grid'>
         <section className='exchange__section--left grid'>
           <Markets />
-          {/* Balance Component (to be added) */}
           <Balance />
-          {/* Order Component (to be added) */}
+          
+          {/* ADDED ORDER COMPONENT */}
+          <Order />
         </section>
 
         <section className='exchange__section--right grid'>
           {/* PriceChart Component (to be added) */}
           {/* Transactions Component (to be added) */}
           {/* Trades Component (to be added) */}
-          {/* OrderBook Component (to be added) */}
+
+          {/* ADDED ORDERBOOK COMPONENT */}
+          <OrderBook />
         </section>
       </main>
     </div>

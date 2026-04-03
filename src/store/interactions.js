@@ -163,3 +163,89 @@ export const transferTokens = async (provider, exchange, transferType, token, am
     dispatch({ type: 'TRANSFER_FAIL' })
   }
 }
+
+
+// ------------------------------------------------------------------------------
+// LOAD ALL ORDERS
+
+export const loadAllOrders = async (provider, exchange, dispatch) => {
+  try {
+    const block = await provider.getBlockNumber()
+
+    // Fetch canceled orders (Ethers v6 syntax)
+    const cancelStream = await exchange.queryFilter('Cancel', 0, block)
+    const cancelledOrders = cancelStream.map(event => event.args)
+
+    dispatch({ type: 'CANCELLED_ORDERS_LOADED', cancelledOrders })
+
+    // Fetch filled orders
+    const tradeStream = await exchange.queryFilter('Trade', 0, block)
+    const filledOrders = tradeStream.map(event => event.args)
+
+    dispatch({ type: 'FILLED_ORDERS_LOADED', filledOrders })
+
+    // Fetch all orders
+    const orderStream = await exchange.queryFilter('Order', 0, block)
+    const allOrders = orderStream.map(event => event.args)
+
+    dispatch({ type: 'ALL_ORDERS_LOADED', allOrders })
+  } catch (error) {
+    console.error('Error loading orders:', error)
+  }
+}
+
+export const subscribeToEvents = (exchange, dispatch) => {
+  exchange.on('Deposit', (token, user, amount, balance, event) => {
+    dispatch({ type: 'TRANSFER_SUCCESS', event })
+  })
+
+  exchange.on('Withdraw', (token, user, amount, balance, event) => {
+    dispatch({ type: 'TRANSFER_SUCCESS', event })
+  })
+
+  exchange.on('Order', (id, user, tokenGet, amountGet, tokenGive, amountGive, timestamp, event) => {
+    const order = event.args
+    dispatch({ type: 'NEW_ORDER_SUCCESS', order, event })
+  })
+}
+
+// ------------------------------------------------------------------------------
+// ORDERS (BUY & SELL)
+
+export const makeBuyOrder = async (provider, exchange, tokens, order, dispatch) => {
+  const tokenGet = tokens[0].target || tokens[0].address
+  const amountGet = ethers.parseUnits(order.amount.toString(), 18)
+  const tokenGive = tokens[1].target || tokens[1].address
+  const amountGive = ethers.parseUnits((order.amount * order.price).toString(), 18)
+
+  dispatch({ type: 'NEW_ORDER_REQUEST' })
+
+  try {
+    const signer = await provider.getSigner()
+    // Notice: Using createOrder to match your Exchange.sol
+    const transaction = await exchange.connect(signer).createOrder(tokenGet, amountGet, tokenGive, amountGive)
+    await transaction.wait()
+  } catch (error) {
+    console.error('Buy Order Failed:', error)
+    dispatch({ type: 'NEW_ORDER_FAIL' })
+  }
+}
+
+export const makeSellOrder = async (provider, exchange, tokens, order, dispatch) => {
+  const tokenGet = tokens[1].target || tokens[1].address
+  const amountGet = ethers.parseUnits((order.amount * order.price).toString(), 18)
+  const tokenGive = tokens[0].target || tokens[0].address
+  const amountGive = ethers.parseUnits(order.amount.toString(), 18)
+
+  dispatch({ type: 'NEW_ORDER_REQUEST' })
+
+  try {
+    const signer = await provider.getSigner()
+    // Notice: Using createOrder to match your Exchange.sol
+    const transaction = await exchange.connect(signer).createOrder(tokenGet, amountGet, tokenGive, amountGive)
+    await transaction.wait()
+  } catch (error) {
+    console.error('Sell Order Failed:', error)
+    dispatch({ type: 'NEW_ORDER_FAIL' })
+  }
+}
