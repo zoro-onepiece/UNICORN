@@ -11,38 +11,44 @@ const allOrders = state => get(state, 'exchange.allOrders.data', [])
 const cancelledOrders = state => get(state, 'exchange.cancelledOrders.data', [])
 const filledOrders = state => get(state, 'exchange.filledOrders.data', [])
 
-const openOrders = state => {
-  const all = allOrders(state)
-  const filled = filledOrders(state)
-  const cancelled = cancelledOrders(state)
-
-  const openOrders = reject(all, (order) => {
-    const orderFilled = filled.some((o) => o.id.toString() === order.id.toString())
-    const orderCancelled = cancelled.some((o) => o.id.toString() === order.id.toString())
-    return (orderFilled || orderCancelled)
-  })
-
-  return openOrders
-}
+// FIX 1: Wrap in createSelector to prevent the infinite loop warning
+const openOrders = createSelector(
+  allOrders,
+  filledOrders,
+  cancelledOrders,
+  (all, filled, cancelled) => {
+    return reject(all, (order) => {
+      const orderFilled = filled.some((o) => o.id.toString() === order.id.toString())
+      const orderCancelled = cancelled.some((o) => o.id.toString() === order.id.toString())
+      return (orderFilled || orderCancelled)
+    })
+  }
+)
 
 const decorateOrder = (order, tokens) => {
   let token0Amount, token1Amount
 
-  // Note: URON should be considered token0, mETH is considered token1
-  const token1Address = tokens[1].target || tokens[1].address
+  const token0Address = (tokens[0].target || tokens[0].address).toLowerCase()
+  const token1Address = (tokens[1].target || tokens[1].address).toLowerCase()
+  const orderTokenGive = order.tokenGive.toLowerCase()
 
-  if (order.tokenGive === token1Address) {
-    token0Amount = order.amountGive // Amount of URON we are giving
-    token1Amount = order.amountGet // Amount of mETH we want
+  if (orderTokenGive === token1Address) {
+    token1Amount = order.amountGive 
+    token0Amount = order.amountGet  
   } else {
-    token0Amount = order.amountGet // Amount of URON we want
-    token1Amount = order.amountGive // Amount of mETH we are giving
+    token0Amount = order.amountGive 
+    token1Amount = order.amountGet  
   }
 
-  // Calculate token price to 5 decimal places
+  // Calculate token price
   const precision = 100000
   let tokenPrice = (Number(token1Amount) / Number(token0Amount))
-  tokenPrice = Math.round(tokenPrice * precision) / precision
+  // FIX: Catch any bad 0/0 math
+  if (isNaN(tokenPrice) || tokenPrice === Infinity) {
+    tokenPrice = 0
+  } else {
+    tokenPrice = Math.round(tokenPrice * precision) / precision
+  }
 
   return ({
     ...order,
@@ -62,12 +68,15 @@ export const orderBookSelector = createSelector(
   (orders, tokens) => {
     if (!tokens[0] || !tokens[1]) { return }
 
-    const token0Address = tokens[0].target || tokens[0].address
-    const token1Address = tokens[1].target || tokens[1].address
+    const t0 = (tokens[0].target || tokens[0].address).toLowerCase()
+    const t1 = (tokens[1].target || tokens[1].address).toLowerCase()
 
-    // Filter orders by selected tokens
-    orders = orders.filter((o) => o.tokenGet === token0Address || o.tokenGet === token1Address)
-    orders = orders.filter((o) => o.tokenGive === token0Address || o.tokenGive === token1Address)
+    // STRICT FILTER: Only show orders where BOTH tokens match the current market
+    orders = orders.filter((o) => {
+      const get = o.tokenGet.toLowerCase()
+      const give = o.tokenGive.toLowerCase()
+      return (get === t0 && give === t1) || (get === t1 && give === t0)
+    })
 
     // Decorate orders
     orders = decorateOrderBookOrders(orders, tokens)
@@ -78,22 +87,15 @@ export const orderBookSelector = createSelector(
     // Fetch buy orders
     const buyOrders = get(orders, 'buy', [])
 
-    // Sort buy orders by token price
-    orders = {
-      ...orders,
-      buyOrders: buyOrders.sort((a, b) => b.tokenPrice - a.tokenPrice)
-    }
-
     // Fetch sell orders
     const sellOrders = get(orders, 'sell', [])
 
-    // Sort sell orders by token price
-    orders = {
+    // FIX 2: Create a copy of the array [...] before sorting so Redux doesn't mutate in place
+    return {
       ...orders,
-      sellOrders: sellOrders.sort((a, b) => b.tokenPrice - a.tokenPrice)
+      buyOrders: [...buyOrders].sort((a, b) => b.tokenPrice - a.tokenPrice),
+      sellOrders: [...sellOrders].sort((a, b) => b.tokenPrice - a.tokenPrice)
     }
-
-    return orders
   }
 )
 
@@ -108,8 +110,8 @@ const decorateOrderBookOrders = (orders, tokens) => {
 }
 
 const decorateOrderBookOrder = (order, tokens) => {
-  const token1Address = tokens[1].target || tokens[1].address
-  const orderType = order.tokenGive === token1Address ? 'buy' : 'sell'
+  const token1Address = (tokens[1].target || tokens[1].address).toLowerCase()
+  const orderType = order.tokenGive.toLowerCase() === token1Address ? 'buy' : 'sell'
 
   return ({
     ...order,

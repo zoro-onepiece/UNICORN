@@ -28,8 +28,25 @@ const Order = () => {
     }
   }
 
+  // const buyHandler = (e) => {
+  //   e.preventDefault()
+  //   makeBuyOrder(provider, exchange, tokens, { amount, price }, dispatch)
+  //   setAmount(0)
+  //   setPrice(0)
+  // }
+
+  // const sellHandler = (e) => {
+  //   e.preventDefault()
+  //   makeSellOrder(provider, exchange, tokens, { amount, price }, dispatch)
+  //   setAmount(0)
+  //   setPrice(0)
+  // }
+
   const buyHandler = (e) => {
     e.preventDefault()
+    // FIX: Block empty/zero submissions
+    if (!amount || amount === '0' || !price || price === '0') return 
+    
     makeBuyOrder(provider, exchange, tokens, { amount, price }, dispatch)
     setAmount(0)
     setPrice(0)
@@ -37,6 +54,9 @@ const Order = () => {
 
   const sellHandler = (e) => {
     e.preventDefault()
+    // FIX: Block empty/zero submissions
+    if (!amount || amount === '0' || !price || price === '0') return 
+
     makeSellOrder(provider, exchange, tokens, { amount, price }, dispatch)
     setAmount(0)
     setPrice(0)

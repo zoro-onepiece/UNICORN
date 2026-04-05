@@ -2,6 +2,73 @@ import { ethers } from 'ethers'
 import TOKEN_ABI from '../abis/Token.abi.json';
 import EXCHANGE_ABI from '../abis/Exchange.abi.json';
 
+
+// ------------------------------------------------------------------------------
+// HELPER: Format Ethers v6 Event Args for Redux (For queryFilter)
+const formatEventOrder = (args) => {
+  return {
+    id: args[0].toString(),       // v6 args are accessed by index or name, index is safer
+    user: args[1],
+    tokenGet: args[2],
+    amountGet: args[3].toString(),
+    tokenGive: args[4],
+    amountGive: args[5].toString(),
+    timestamp: args[6].toString()
+  }
+}
+
+// ------------------------------------------------------------------------------
+// LOAD ALL ORDERS
+export const loadAllOrders = async (provider, exchange, dispatch) => {
+  try {
+    const block = await provider.getBlockNumber()
+
+    // Fetch canceled orders
+    const cancelStream = await exchange.queryFilter('Cancel', 0, block)
+    const cancelledOrders = cancelStream.map(event => formatEventOrder(event.args))
+    dispatch({ type: 'CANCELLED_ORDERS_LOADED', cancelledOrders })
+
+    // Fetch filled orders
+    const tradeStream = await exchange.queryFilter('Trade', 0, block)
+    const filledOrders = tradeStream.map(event => formatEventOrder(event.args))
+    dispatch({ type: 'FILLED_ORDERS_LOADED', filledOrders })
+
+    // Fetch all orders
+    const orderStream = await exchange.queryFilter('Order', 0, block)
+    const allOrders = orderStream.map(event => formatEventOrder(event.args))
+    dispatch({ type: 'ALL_ORDERS_LOADED', allOrders })
+  } catch (error) {
+    console.error('Error loading orders:', error)
+  }
+}
+
+// ------------------------------------------------------------------------------
+// SUBSCRIBE TO EVENTS
+export const subscribeToEvents = (exchange, dispatch) => {
+  
+  // FIX: Don't store the raw eventPayload in Redux, it breaks Ethers v6 Contracts!
+  exchange.on('Deposit', (token, user, amount, balance, eventPayload) => {
+    dispatch({ type: 'TRANSFER_SUCCESS', event: true }) 
+  })
+
+  exchange.on('Withdraw', (token, user, amount, balance, eventPayload) => {
+    dispatch({ type: 'TRANSFER_SUCCESS', event: true })
+  })
+
+  // FIX: In v6, arguments are passed directly to the callback, not inside event.args
+  exchange.on('Order', (id, user, tokenGet, amountGet, tokenGive, amountGive, timestamp, eventPayload) => {
+    const order = {
+      id: id.toString(),
+      user: user,
+      tokenGet: tokenGet,
+      amountGet: amountGet.toString(),
+      tokenGive: tokenGive,
+      amountGive: amountGive.toString(),
+      timestamp: timestamp.toString()
+    }
+    dispatch({ type: 'NEW_ORDER_SUCCESS', order, event: true })
+  })
+}
 export const loadProvider = (dispatch) => {
   const connection = new ethers.BrowserProvider(window.ethereum)
   dispatch({ type: 'PROVIDER_LOADED', connection })
@@ -66,7 +133,7 @@ export const loadExchange = async (provider, address, dispatch) => {
 
 export const loadBalances = async (exchange, tokens, account, dispatch) => {
   try {
-    if (!exchange || !tokens || !tokens[0] || !tokens[1] || !account) {
+    if (!exchange ||!exchange.target ||!tokens || !tokens[0] || !tokens[1] || !account) {
       console.log('Missing required data for loading balances:', { exchange: !!exchange, tokens, account })
       return
     }
@@ -165,52 +232,6 @@ export const transferTokens = async (provider, exchange, transferType, token, am
 }
 
 
-// ------------------------------------------------------------------------------
-// LOAD ALL ORDERS
-
-export const loadAllOrders = async (provider, exchange, dispatch) => {
-  try {
-    const block = await provider.getBlockNumber()
-
-    // Fetch canceled orders (Ethers v6 syntax)
-    const cancelStream = await exchange.queryFilter('Cancel', 0, block)
-    const cancelledOrders = cancelStream.map(event => event.args)
-
-    dispatch({ type: 'CANCELLED_ORDERS_LOADED', cancelledOrders })
-
-    // Fetch filled orders
-    const tradeStream = await exchange.queryFilter('Trade', 0, block)
-    const filledOrders = tradeStream.map(event => event.args)
-
-    dispatch({ type: 'FILLED_ORDERS_LOADED', filledOrders })
-
-    // Fetch all orders
-    const orderStream = await exchange.queryFilter('Order', 0, block)
-    const allOrders = orderStream.map(event => event.args)
-
-    dispatch({ type: 'ALL_ORDERS_LOADED', allOrders })
-  } catch (error) {
-    console.error('Error loading orders:', error)
-  }
-}
-
-export const subscribeToEvents = (exchange, dispatch) => {
-  exchange.on('Deposit', (token, user, amount, balance, event) => {
-    dispatch({ type: 'TRANSFER_SUCCESS', event })
-  })
-
-  exchange.on('Withdraw', (token, user, amount, balance, event) => {
-    dispatch({ type: 'TRANSFER_SUCCESS', event })
-  })
-
-  exchange.on('Order', (id, user, tokenGet, amountGet, tokenGive, amountGive, timestamp, event) => {
-    const order = event.args
-    dispatch({ type: 'NEW_ORDER_SUCCESS', order, event })
-  })
-}
-
-// ------------------------------------------------------------------------------
-// ORDERS (BUY & SELL)
 
 export const makeBuyOrder = async (provider, exchange, tokens, order, dispatch) => {
   const tokenGet = tokens[0].target || tokens[0].address
