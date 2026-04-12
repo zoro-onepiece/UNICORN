@@ -5,15 +5,33 @@ import EXCHANGE_ABI from '../abis/Exchange.abi.json';
 
 // ------------------------------------------------------------------------------
 // HELPER: Format Ethers v6 Event Args for Redux (For queryFilter)
+// ------------------------------------------------------------------------------
+// HELPER: Format Ethers v6 Event Args for Redux (For queryFilter)
+
+// Formatter for Order and Cancel events (7 arguments)
 const formatEventOrder = (args) => {
   return {
-    id: args[0].toString(),       // v6 args are accessed by index or name, index is safer
+    id: args[0].toString(),
     user: args[1],
     tokenGet: args[2],
     amountGet: args[3].toString(),
     tokenGive: args[4],
     amountGive: args[5].toString(),
     timestamp: args[6].toString()
+  }
+}
+
+// Formatter for Trade events (8 arguments)
+const formatTradeOrder = (args) => {
+  return {
+    id: args[0].toString(),
+    user: args[1],
+    tokenGet: args[2],
+    amountGet: args[3].toString(),
+    tokenGive: args[4],
+    amountGive: args[5].toString(),
+    creator: args[6], // Trade events include the creator address here!
+    timestamp: args[7].toString() // Timestamp is shifted to index 7
   }
 }
 
@@ -28,9 +46,9 @@ export const loadAllOrders = async (provider, exchange, dispatch) => {
     const cancelledOrders = cancelStream.map(event => formatEventOrder(event.args))
     dispatch({ type: 'CANCELLED_ORDERS_LOADED', cancelledOrders })
 
-    // Fetch filled orders
+    // Fetch filled orders (TRADES) -> Uses the new Trade formatter!
     const tradeStream = await exchange.queryFilter('Trade', 0, block)
-    const filledOrders = tradeStream.map(event => formatEventOrder(event.args))
+    const filledOrders = tradeStream.map(event => formatTradeOrder(event.args))
     dispatch({ type: 'FILLED_ORDERS_LOADED', filledOrders })
 
     // Fetch all orders
@@ -41,6 +59,8 @@ export const loadAllOrders = async (provider, exchange, dispatch) => {
     console.error('Error loading orders:', error)
   }
 }
+
+// ---------
 
 // ------------------------------------------------------------------------------
 // SUBSCRIBE TO EVENTS
@@ -67,6 +87,19 @@ export const subscribeToEvents = (exchange, dispatch) => {
       timestamp: timestamp.toString()
     }
     dispatch({ type: 'NEW_ORDER_SUCCESS', order, event: true })
+  })
+
+  exchange.on('Cancel', (id, user, tokenGet, amountGet, tokenGive, amountGive, timestamp, eventPayload) => {
+    const order = {
+      id: id.toString(),
+      user: user,
+      tokenGet: tokenGet,
+      amountGet: amountGet.toString(),
+      tokenGive: tokenGive,
+      amountGive: amountGive.toString(),
+      timestamp: timestamp.toString()
+    }
+    dispatch({ type: 'ORDER_CANCEL_SUCCESS', order, event: true })
   })
 }
 export const loadProvider = (dispatch) => {
@@ -231,19 +264,18 @@ export const transferTokens = async (provider, exchange, transferType, token, am
   }
 }
 
-
-
 export const makeBuyOrder = async (provider, exchange, tokens, order, dispatch) => {
   const tokenGet = tokens[0].target || tokens[0].address
-  const amountGet = ethers.parseUnits(order.amount.toString(), 18)
+  const amountGet = ethers.parseUnits(Number(order.amount).toFixed(18), 18)
+  
   const tokenGive = tokens[1].target || tokens[1].address
-  const amountGive = ethers.parseUnits((order.amount * order.price).toString(), 18)
+  const totalCost = Number(order.amount) * Number(order.price)
+  const amountGive = ethers.parseUnits(totalCost.toFixed(18), 18)
 
   dispatch({ type: 'NEW_ORDER_REQUEST' })
 
   try {
     const signer = await provider.getSigner()
-    // Notice: Using createOrder to match your Exchange.sol
     const transaction = await exchange.connect(signer).createOrder(tokenGet, amountGet, tokenGive, amountGive)
     await transaction.wait()
   } catch (error) {
@@ -254,19 +286,36 @@ export const makeBuyOrder = async (provider, exchange, tokens, order, dispatch) 
 
 export const makeSellOrder = async (provider, exchange, tokens, order, dispatch) => {
   const tokenGet = tokens[1].target || tokens[1].address
-  const amountGet = ethers.parseUnits((order.amount * order.price).toString(), 18)
+  const totalReceived = Number(order.amount) * Number(order.price)
+  const amountGet = ethers.parseUnits(totalReceived.toFixed(18), 18)
+  
   const tokenGive = tokens[0].target || tokens[0].address
-  const amountGive = ethers.parseUnits(order.amount.toString(), 18)
+  const amountGive = ethers.parseUnits(Number(order.amount).toFixed(18), 18)
 
   dispatch({ type: 'NEW_ORDER_REQUEST' })
 
   try {
     const signer = await provider.getSigner()
-    // Notice: Using createOrder to match your Exchange.sol
     const transaction = await exchange.connect(signer).createOrder(tokenGet, amountGet, tokenGive, amountGive)
     await transaction.wait()
   } catch (error) {
     console.error('Sell Order Failed:', error)
     dispatch({ type: 'NEW_ORDER_FAIL' })
+  }
+}
+
+
+
+
+export const cancelOrder = async (provider, exchange, order, dispatch) => {
+  dispatch({ type: 'ORDER_CANCEL_REQUEST' })
+  try {
+    const signer = await provider.getSigner()
+    const transaction = await exchange.connect(signer).cancelOrder(order.id)
+    await transaction.wait()
+    dispatch({ type: 'ORDER_CANCEL_SUCCESS' }) // Wait for the event listener to catch it
+  } catch (error) {
+    console.error('Cancel Order Failed:', error)
+    dispatch({ type: 'ORDER_CANCEL_FAIL' })
   }
 }

@@ -19,7 +19,9 @@ import Markets from './Markets'
 import Balance from './Balance'
 import Order from './Order'         // ADDED THIS
 import OrderBook from './Orderbook'; // ADDED THIS
-
+import PriceChart from './Pricechart'; // ADDED THIS
+import Transactions from './Transactions'; // ADDED THIS
+import Trades from './Trades'; // ADDED THIS
 function App() {
   const dispatch = useDispatch()
   const [isWalletConnected, setIsWalletConnected] = useState(false)
@@ -301,6 +303,12 @@ function App() {
           {/* Trades Component (to be added) */}
 
           {/* ADDED ORDERBOOK COMPONENT */}
+          <PriceChart />
+          
+          <Transactions />
+          
+          <Trades />
+
           <OrderBook />
         </section>
       </main>
