@@ -67,6 +67,6 @@
     },
     "explorerURL": "https://sepolia.etherscan.io/",
     "isLocal": false,
-    "needsDeployment": true
+    "needsDeployment": false
   }
 }
