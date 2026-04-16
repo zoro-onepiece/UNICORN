@@ -58,7 +58,7 @@ const Navbar = ({ setIsWalletConnected, connectWalletHandler }) => {
         <select 
           name="networks" 
           id="networks" 
-          value={chainId ? `0x${chainId.toString(16)}` : '0'} 
+          value={chainId ? `0x${chainId.toString(16).toUpperCase()}` : '0'} 
           onChange={networkHandler}
         >
           <option value="0" disabled>Select Network</option>
