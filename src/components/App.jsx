@@ -194,66 +194,79 @@ function App() {
     }
   }
 
-  useEffect(() => {
-    // Set up listeners for MetaMask events
-    if (window.ethereum) {
-      const handleAccountsChanged = () => {
-        connectWalletHandler()
-      }
-
-      const handleChainChanged = (newChainId) => {
-        console.log('Chain changed to:', newChainId)
-        // Clear state
+ useEffect(() => {
+  // Set up listeners for MetaMask events
+  if (window.ethereum) {
+    const handleAccountsChanged = (accounts) => {
+      console.log('Accounts changed:', accounts)
+      if (accounts.length > 0) {
+        // Reload to refresh with new account
+        window.location.reload()
+      } else {
+        // No accounts, clear state
         dispatch({ type: 'ACCOUNT_LOADED', account: null })
         dispatch({ type: 'ETHER_BALANCE_LOADED', balance: '0' })
         setIsWalletConnected(false)
-        setNetworkError(null)
-
-        // Load new network data
-        setTimeout(() => {
-          window.location.reload()
-        }, 500)
       }
-
-      window.ethereum.on('accountsChanged', handleAccountsChanged)
-      window.ethereum.on('chainChanged', handleChainChanged)
-
-      // Initialize - check if already on Hardhat and connected
-      const init = async () => {
-        try {
-          const provider = new ethers.BrowserProvider(window.ethereum)
-          const network = await provider.getNetwork()
-          const chainId = Number(network.chainId)
-          console.log('Initial chainId on mount:', chainId)
-
-          // If already on Hardhat AND has connected account, auto-load
-          if (chainId === 31337 && window.ethereum.selectedAddress) {
-            await connectWalletHandler(31337)
-          }
-          else if (chainId === 11155111 && window.ethereum.selectedAddress) {
-            await connectWalletHandler(11155111)
-          }
-
-          setInitialized(true)
-        } catch (error) {
-          console.log('Could not get initial network:', error)
-          setInitialized(true)
-        }
-      }
-
-      init()
-
-      // Cleanup listeners
-      return () => {
-        if (window.ethereum) {
-          window.ethereum.removeListener('accountsChanged', handleAccountsChanged)
-          window.ethereum.removeListener('chainChanged', handleChainChanged)
-        }
-      }
-    } else {
-      setInitialized(true)
     }
-  }, [])
+
+    const handleChainChanged = (newChainIdHex) => {
+      console.log('Chain changed to hex:', newChainIdHex)
+      const newChainId = parseInt(newChainIdHex, 16)
+      console.log('Chain changed to decimal:', newChainId)
+      
+      // Clear all state
+      dispatch({ type: 'ACCOUNT_LOADED', account: null })
+      dispatch({ type: 'ETHER_BALANCE_LOADED', balance: '0' })
+      dispatch({ type: 'NETWORK_LOADED', chainId: newChainId })
+      setIsWalletConnected(false)
+      setNetworkError(null)
+      
+      // Reload after network change
+      window.location.reload()
+    }
+
+    window.ethereum.on('accountsChanged', handleAccountsChanged)
+    window.ethereum.on('chainChanged', handleChainChanged)
+
+    // Initialize - check current network and account
+    const init = async () => {
+      try {
+        const provider = new ethers.BrowserProvider(window.ethereum)
+        const network = await provider.getNetwork()
+        const currentChainId = Number(network.chainId)
+        console.log('Initial chainId on mount:', currentChainId)
+        
+        // Update Redux with current chainId
+        dispatch({ type: 'NETWORK_LOADED', chainId: currentChainId })
+        
+        // Check if there's a connected account
+        const accounts = await provider.listAccounts()
+        if (accounts.length > 0 && window.ethereum.selectedAddress) {
+          // Auto-load if account exists
+          await connectWalletHandler(currentChainId)
+        }
+        
+        setInitialized(true)
+      } catch (error) {
+        console.log('Could not get initial network:', error)
+        setInitialized(true)
+      }
+    }
+
+    init()
+
+    // Cleanup listeners
+    return () => {
+      if (window.ethereum) {
+        window.ethereum.removeListener('accountsChanged', handleAccountsChanged)
+        window.ethereum.removeListener('chainChanged', handleChainChanged)
+      }
+    }
+  } else {
+    setInitialized(true)
+  }
+}, [])
 
   return (
     <div>

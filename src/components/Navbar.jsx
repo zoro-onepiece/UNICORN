@@ -1,12 +1,9 @@
 import { useSelector, useDispatch } from 'react-redux'
 import Blockies from 'react-blockies'
 import { ethers } from 'ethers'
-
 import logo from '../assets/logo.png'
 import eth from '../assets/eth.svg'
-
 import { loadAccount, loadProvider } from '../store/interactions'
-
 import config from '../config.json'
 
 const Navbar = ({ setIsWalletConnected, connectWalletHandler }) => {
@@ -18,13 +15,18 @@ const Navbar = ({ setIsWalletConnected, connectWalletHandler }) => {
   const dispatch = useDispatch()
 
   const connectHandler = async () => {
-    if (!chainId) {
-      // No network selected yet, connect to Hardhat by default
-      await connectWalletHandler(31337)
-    } else {
-      // Connect to current selected network
-      await connectWalletHandler(chainId)
+    // Get current network from MetaMask first
+    if (!window.ethereum) {
+      alert('Please install MetaMask!')
+      return
     }
+    
+    const currentProvider = new ethers.BrowserProvider(window.ethereum)
+    const network = await currentProvider.getNetwork()
+    const currentChainId = Number(network.chainId)
+    
+    // Connect to the current network
+    await connectWalletHandler(currentChainId)
   }
 
   const networkHandler = async (e) => {
@@ -34,27 +36,50 @@ const Navbar = ({ setIsWalletConnected, connectWalletHandler }) => {
     const selectedChainId = parseInt(selectedChainIdHex, 16)
     console.log('Switching to network:', selectedChainId)
     
-    // Clear current state when switching networks
-    if (account) {
-      dispatch({ type: 'ACCOUNT_LOADED', account: null })
-      dispatch({ type: 'ETHER_BALANCE_LOADED', balance: '0' })
-      setIsWalletConnected(false)
+    try {
+      // Switch network in MetaMask
+      await window.ethereum.request({
+        method: 'wallet_switchEthereumChain',
+        params: [{ chainId: selectedChainIdHex }],
+      })
+      
+      // After successful switch, MetaMask will emit a 'chainChanged' event
+      // which will trigger a page reload in App.jsx
+      
+    } catch (switchError) {
+      // If network not added, add it
+      if (switchError.code === 4902) {
+        const networkParams = selectedChainId === 11155111 ? {
+          chainId: '0xAA36A7',
+          chainName: 'Sepolia Testnet',
+          nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
+          rpcUrls: ['https://sepolia.infura.io/v3/'],
+          blockExplorerUrls: ['https://sepolia.etherscan.io/']
+        } : {
+          chainId: '0x7A69',
+          chainName: 'Hardhat Local',
+          nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
+          rpcUrls: ['http://127.0.0.1:8545/'],
+          blockExplorerUrls: []
+        }
+        
+        await window.ethereum.request({
+          method: 'wallet_addEthereumChain',
+          params: [networkParams],
+        })
+      }
     }
-    
-    // Call the connection handler with the new network
-    await connectWalletHandler(selectedChainId)
   }
 
   return(
     <div className='exchange__header grid'>
       <div className='exchange__header--brand flex'>
-        <img src={logo} className="logo" alt="Unicorn Logo"></img>
+        <img src={logo} className="logo" alt="Unicorn Logo" />
         <h1>🦄 Unicorn Exchange</h1>
       </div>
-
+      
       <div className='exchange__header--networks flex'>
         <img src={eth} alt="ETH Logo" className='Eth Logo' />
-
         <select 
           name="networks" 
           id="networks" 
@@ -66,19 +91,18 @@ const Navbar = ({ setIsWalletConnected, connectWalletHandler }) => {
           <option value="0xAA36A7">Sepolia Testnet</option>
         </select>
       </div>
-
+      
       <div className='exchange__header--account flex'>
         {balance ? (
           <p><small>My Balance</small>{Number(balance).toFixed(4)} ETH</p>
         ) : (
           <p><small>My Balance</small>0 ETH</p>
         )}
-        
         {account ? (
           <a
             href={
               chainId === 1337 || chainId === 31337 
-                ? '#'  // No explorer for local networks
+                ? '#' 
                 : config[chainId]?.explorerURL 
                   ? `${config[chainId].explorerURL}/address/${account}`
                   : '#'
@@ -105,9 +129,7 @@ const Navbar = ({ setIsWalletConnected, connectWalletHandler }) => {
             />
           </a>
         ) : (
-          <button className="button" onClick={connectHandler}>
-            Connect
-          </button>
+          <button className="button" onClick={connectHandler}>Connect</button>
         )}
       </div>
     </div>
