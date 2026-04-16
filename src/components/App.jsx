@@ -230,9 +230,8 @@ function App() {
           if (chainId === 31337 && window.ethereum.selectedAddress) {
             await connectWalletHandler(31337)
           }
-          // If on Sepolia with connected account, just show error
           else if (chainId === 11155111 && window.ethereum.selectedAddress) {
-            setNetworkError('Contracts not deployed on Sepolia. Switch to Hardhat (31337) to trade.')
+            await connectWalletHandler(11155111)
           }
 
           setInitialized(true)
