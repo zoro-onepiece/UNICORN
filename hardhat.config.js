@@ -6,17 +6,16 @@ export default {
   defaultNetwork: "hardhat",
   networks: {
     hardhat: {
-      type: "edr-simulated", // Explicitly set the type for Hardhat's built-in network
       chainId: 31337,
     },
     localhost: {
-      type: "http", // Localhost connects via HTTP
       url: "http://127.0.0.1:8545",
       chainId: 31337,
     },
     sepolia: {
-      type: "http", // Sepolia is an external HTTP network
-      url: process.env.SEPOLIA_RPC_URL || "https://sepolia.infura.io/v3/YOUR_INFURA_KEY",
+      // Use the URL from your Alchemy dashboard
+      url: process.env.SEPOLIA_RPC_URL || "", 
+      // This MUST be the private key of an account with Sepolia ETH
       accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
       chainId: 11155111,
     }

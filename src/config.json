@@ -47,18 +47,23 @@
   },
   "11155111": {
     "exchange": {
-      "address": "",
+      "address": "0xa7d752d7779bCC894865FbA3F5D02FE6A70BACBe",
       "name": "Unicorn Exchange"
     },
     "URON": {
-      "address": "",
+      "address": "0x9acd0ba3815299Fac2c4238444A1F55B580ee5C8",
       "name": "UNIRON",
       "symbol": "URON"
     },
     "mETH": {
-      "address": "",
+      "address": "0x1893fab1aa23bF9e54AaadD8F2916c0a62C1bB6a",
       "name": "mETH",
       "symbol": "mETH"
+    },
+    "mDAI": {
+      "address": "0xB3ED9F3BEf4008743f273f26C41cEBE7e001b990",
+      "name": "mDAI",
+      "symbol": "mDAI"
     },
     "explorerURL": "https://sepolia.etherscan.io/",
     "isLocal": false,

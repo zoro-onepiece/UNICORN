@@ -64,42 +64,32 @@ export const loadAllOrders = async (provider, exchange, dispatch) => {
 
 // ------------------------------------------------------------------------------
 // SUBSCRIBE TO EVENTS
+// ------------------------------------------------------------------------------
+// SUBSCRIBE TO EVENTS
 export const subscribeToEvents = (exchange, dispatch) => {
   
-  // FIX: Don't store the raw eventPayload in Redux, it breaks Ethers v6 Contracts!
-  exchange.on('Deposit', (token, user, amount, balance, eventPayload) => {
+  exchange.on('Cancel', (...args) => {
+    const order = formatEventOrder(args)
+    dispatch({ type: 'ORDER_CANCEL_SUCCESS', order, event: true })
+  })
+
+  // YOU WERE MISSING THIS ONE!
+  exchange.on('Trade', (...args) => {
+    const order = formatTradeOrder(args)
+    dispatch({ type: 'ORDER_FILL_SUCCESS', order, event: true })
+  })
+
+  exchange.on('Deposit', () => {
     dispatch({ type: 'TRANSFER_SUCCESS', event: true }) 
   })
 
-  exchange.on('Withdraw', (token, user, amount, balance, eventPayload) => {
+  exchange.on('Withdraw', () => {
     dispatch({ type: 'TRANSFER_SUCCESS', event: true })
   })
 
-  // FIX: In v6, arguments are passed directly to the callback, not inside event.args
-  exchange.on('Order', (id, user, tokenGet, amountGet, tokenGive, amountGive, timestamp, eventPayload) => {
-    const order = {
-      id: id.toString(),
-      user: user,
-      tokenGet: tokenGet,
-      amountGet: amountGet.toString(),
-      tokenGive: tokenGive,
-      amountGive: amountGive.toString(),
-      timestamp: timestamp.toString()
-    }
+  exchange.on('Order', (...args) => {
+    const order = formatEventOrder(args)
     dispatch({ type: 'NEW_ORDER_SUCCESS', order, event: true })
-  })
-
-  exchange.on('Cancel', (id, user, tokenGet, amountGet, tokenGive, amountGive, timestamp, eventPayload) => {
-    const order = {
-      id: id.toString(),
-      user: user,
-      tokenGet: tokenGet,
-      amountGet: amountGet.toString(),
-      tokenGive: tokenGive,
-      amountGive: amountGive.toString(),
-      timestamp: timestamp.toString()
-    }
-    dispatch({ type: 'ORDER_CANCEL_SUCCESS', order, event: true })
   })
 }
 export const loadProvider = (dispatch) => {
@@ -317,5 +307,20 @@ export const cancelOrder = async (provider, exchange, order, dispatch) => {
   } catch (error) {
     console.error('Cancel Order Failed:', error)
     dispatch({ type: 'ORDER_CANCEL_FAIL' })
+  }
+}
+
+// ------------------------------------------------------------------------------
+// FILL ORDER (Execute a Trade)
+
+export const fillOrder = async (provider, exchange, order, dispatch) => {
+  dispatch({ type: 'ORDER_FILL_REQUEST' })
+  try {
+    const signer = await provider.getSigner()
+    const transaction = await exchange.connect(signer).fillOrder(order.id)
+    await transaction.wait()
+  } catch (error) {
+    console.error('Fill Order Failed:', error)
+    dispatch({ type: 'ORDER_FILL_FAIL' })
   }
 }
