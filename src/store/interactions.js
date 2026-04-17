@@ -202,57 +202,78 @@ export const loadBalances = async (exchange, tokens, account, dispatch) => {
   }
 }
 
-export const transferTokens = async (provider, exchange, transferType, token, amount, dispatch) => {
+export const transferTokens = async (provider, exchange, transferType, token, amount, dispatch, tokenIndex) => {
   if (!provider || !exchange || !token || !amount) {
     console.error('Missing required parameters for transfer')
     return
   }
 
-  dispatch({ type: 'TRANSFER_REQUEST' })
+  // Pass tokenIndex to indicate which token is being transferred
+  dispatch({ type: 'TRANSFER_REQUEST', tokenIndex })
 
   try {
     const signer = await provider.getSigner()
     const amountToTransfer = ethers.parseUnits(amount.toString(), 18)
     
-    // Get token address (handle both ethers v5 and v6)
     const tokenAddress = token.target || token.address
     const exchangeAddress = exchange.target || exchange.address
 
-    console.log(`Approving ${amount} tokens...`)
+    console.log(`Transfer Type: ${transferType}`)
+    console.log(`Amount: ${amount} (${amountToTransfer.toString()} wei)`)
     console.log('Token address:', tokenAddress)
     console.log('Exchange address:', exchangeAddress)
 
-    // Approve tokens first
-    const approveTx = await token.connect(signer).approve(exchangeAddress, amountToTransfer)
-    await approveTx.wait()
-    console.log('Approval confirmed')
+    // Get current allowance before approving
+    const currentAllowance = await token.allowance(await signer.getAddress(), exchangeAddress)
+    console.log(`Current allowance: ${ethers.formatUnits(currentAllowance, 18)}`)
 
-    console.log(`${transferType === 'deposit' ? 'Depositing' : 'Withdrawing'} ${amount} tokens...`)
-    
-    let tx
     if (transferType === 'deposit') {
-      tx = await exchange.connect(signer).depositToken(tokenAddress, amountToTransfer)
-    } else {
-      tx = await exchange.connect(signer).withdrawToken(tokenAddress, amountToTransfer)
+      // Only need to approve if allowance is insufficient
+      if (currentAllowance < amountToTransfer) {
+        console.log(`Approving ${amount} tokens...`)
+        const approveTx = await token.connect(signer).approve(exchangeAddress, amountToTransfer)
+        await approveTx.wait()
+        console.log('Approval confirmed')
+      } else {
+        console.log('Allowance already sufficient, skipping approval')
+      }
+      
+      console.log(`Depositing ${amount} tokens...`)
+      const depositTx = await exchange.connect(signer).depositToken(tokenAddress, amountToTransfer)
+      await depositTx.wait()
+      console.log('Deposit confirmed')
+      
+    } else if (transferType === 'withdraw') {
+      // For withdraw, we don't need approval - just withdraw
+      console.log(`Withdrawing ${amount} tokens...`)
+      const withdrawTx = await exchange.connect(signer).withdrawToken(tokenAddress, amountToTransfer)
+      await withdrawTx.wait()
+      console.log('Withdraw confirmed')
     }
-    
-    await tx.wait()
-    console.log(`${transferType} confirmed`)
 
     dispatch({ type: 'TRANSFER_SUCCESS' })
 
-    // Reload balances after successful transfer
-    const account = await signer.getAddress()
+    // Wait a moment then reload to refresh balances
     setTimeout(() => {
-      // Get updated token contracts and reload balances
       window.location.reload()
     }, 2000)
 
   } catch (error) {
     console.error(`${transferType} failed:`, error)
+    
+    // More detailed error logging
+    if (error.code === 'CALL_EXCEPTION') {
+      console.error('Transaction failed on blockchain - check contract logic')
+    } else if (error.code === 'INSUFFICIENT_FUNDS') {
+      alert(`Insufficient ${transferType === 'deposit' ? 'wallet' : 'exchange'} balance`)
+    } else if (error.code === 4001) {
+      console.error('User rejected transaction')
+    }
+    
     dispatch({ type: 'TRANSFER_FAIL' })
   }
 }
+
 
 export const makeBuyOrder = async (provider, exchange, tokens, order, dispatch) => {
   const tokenGet = tokens[0].target || tokens[0].address

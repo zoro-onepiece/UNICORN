@@ -7,7 +7,6 @@ const Balance = () => {
     const [token1TransferAmount, setToken1TransferAmount] = useState('')
     const [token2TransferAmount, setToken2TransferAmount] = useState('')
     const [activeTab, setActiveTab] = useState('deposit')
-    const [transferStatus, setTransferStatus] = useState({ token1: false, token2: false })
     
     const dispatch = useDispatch()
 
@@ -19,9 +18,8 @@ const Balance = () => {
     const symbols = useSelector(state => state.tokens.symbols)
     const tokenBalances = useSelector(state => state.tokens.balances)
     const exchangeBalances = useSelector(state => state.exchange.balances)
-    const transferInProgress = useSelector(state => state.exchange.transferInProgress)
+    const transferInProgress = useSelector(state => state.exchange.transferInProgress) // Now { token1, token2 }
 
-    // Safe getter for token addresses (handles ethers v5 and v6)
     const getTokenAddress = (token) => {
         if (!token) return null
         return token.target || token.address
@@ -29,7 +27,6 @@ const Balance = () => {
 
     const amountHandler = (e, token) => {
         const value = e.target.value
-        // Only allow numbers and decimals
         if (value === '' || /^\d*\.?\d*$/.test(value)) {
             if (tokens[0] && token && getTokenAddress(token) === getTokenAddress(tokens[0])) {
                 setToken1TransferAmount(value)
@@ -39,7 +36,7 @@ const Balance = () => {
         }
     }
 
-    const submitHandler = async (e, token, type) => {
+    const submitHandler = async (e, token, type, tokenIndex) => {
         e.preventDefault()
 
         if (!provider || !account || !exchange) {
@@ -54,27 +51,18 @@ const Balance = () => {
             return
         }
 
-        const amount = token === tokens[0] 
-            ? token1TransferAmount 
-            : token2TransferAmount
+        const amount = tokenIndex === 0 ? token1TransferAmount : token2TransferAmount
 
         if (!amount || amount === '0' || amount === '') {
             alert('Please enter an amount greater than 0')
             return
         }
 
-        // Set transfer status for this token
-        if (token === tokens[0]) {
-            setTransferStatus(prev => ({ ...prev, token1: true }))
-        } else {
-            setTransferStatus(prev => ({ ...prev, token2: true }))
-        }
-
         try {
-            await transferTokens(provider, exchange, type, token, amount, dispatch)
+            // Pass tokenIndex to track which token is being transferred
+            await transferTokens(provider, exchange, type, token, amount, dispatch, tokenIndex)
             
-            // Clear input after successful transaction
-            if (token === tokens[0]) {
+            if (tokenIndex === 0) {
                 setToken1TransferAmount('')
             } else {
                 setToken2TransferAmount('')
@@ -85,13 +73,6 @@ const Balance = () => {
         } catch (error) {
             console.error(`${type} failed:`, error)
             alert(`${type} failed: ${error.message || 'Unknown error'}`)
-        } finally {
-            // Clear transfer status
-            if (token === tokens[0]) {
-                setTransferStatus(prev => ({ ...prev, token1: false }))
-            } else {
-                setTransferStatus(prev => ({ ...prev, token2: false }))
-            }
         }
     }
 
@@ -109,13 +90,11 @@ const Balance = () => {
         loadAllBalances()
     }, [exchange, tokens, account, transferInProgress, dispatch])
 
-    // Format balance for display
     const formatBalance = (balance) => {
         if (!balance || balance === '0' || balance === '0.0') return '0.0000'
         return Number(balance).toFixed(4)
     }
 
-    // Check if token is loaded and ready
     const isTokenReady = (token) => {
         return token && getTokenAddress(token)
     }
@@ -140,7 +119,7 @@ const Balance = () => {
                 </div>
             </div>
 
-            {/* URON Section */}
+            {/* URON Section - Token 0 */}
             <div className='exchange__transfers--form'>
                 <div className='flex-between'>
                     <p>
@@ -164,7 +143,7 @@ const Balance = () => {
                     </p>
                 </div>
 
-                <form onSubmit={(e) => submitHandler(e, tokens[0], activeTab)}>
+                <form onSubmit={(e) => submitHandler(e, tokens[0], activeTab, 0)}>
                     <label htmlFor="token0">
                         {symbols && symbols[0] ? symbols[0] : 'URON'} Amount ({activeTab})
                     </label>
@@ -174,27 +153,25 @@ const Balance = () => {
                         placeholder='0.0000'
                         value={token1TransferAmount}
                         onChange={(e) => amountHandler(e, tokens[0])}
-                        disabled={transferInProgress || transferStatus.token1 || !isTokenReady(tokens[0])}
+                        disabled={transferInProgress?.token1 || !isTokenReady(tokens[0])}
                         style={{ 
-                            opacity: transferInProgress || transferStatus.token1 ? 0.6 : 1,
-                            cursor: transferInProgress || transferStatus.token1 ? 'not-allowed' : 'text'
+                            opacity: transferInProgress?.token1 ? 0.6 : 1,
+                            cursor: transferInProgress?.token1 ? 'not-allowed' : 'text'
                         }}
                     />
                     <button 
                         className='button' 
                         type='submit' 
-                        disabled={transferInProgress || transferStatus.token1 || !isTokenReady(tokens[0])}
+                        disabled={transferInProgress?.token1 || !isTokenReady(tokens[0])}
                         style={{ 
-                            opacity: transferInProgress || transferStatus.token1 ? 0.6 : 1,
-                            cursor: transferInProgress || transferStatus.token1 ? 'not-allowed' : 'pointer'
+                            opacity: transferInProgress?.token1 ? 0.6 : 1,
+                            cursor: transferInProgress?.token1 ? 'not-allowed' : 'pointer'
                         }}
                     >
                         <span>
-                            {transferStatus.token1 
+                            {transferInProgress?.token1 
                                 ? 'Processing...' 
-                                : transferInProgress 
-                                    ? 'Loading...' 
-                                    : activeTab === 'deposit' ? 'Deposit' : 'Withdraw'
+                                : activeTab === 'deposit' ? 'Deposit' : 'Withdraw'
                             }
                         </span>
                     </button>
@@ -203,7 +180,7 @@ const Balance = () => {
 
             <hr />
 
-            {/* mETH Section */}
+            {/* mETH Section - Token 1 */}
             <div className='exchange__transfers--form'>
                 <div className='flex-between'>
                     <p>
@@ -227,7 +204,7 @@ const Balance = () => {
                     </p>
                 </div>
 
-                <form onSubmit={(e) => submitHandler(e, tokens[1], activeTab)}>
+                <form onSubmit={(e) => submitHandler(e, tokens[1], activeTab, 1)}>
                     <label htmlFor="token1">
                         {symbols && symbols[1] ? symbols[1] : 'mETH'} Amount ({activeTab})
                     </label>
@@ -237,27 +214,25 @@ const Balance = () => {
                         placeholder='0.0000'
                         value={token2TransferAmount}
                         onChange={(e) => amountHandler(e, tokens[1])}
-                        disabled={transferInProgress || transferStatus.token2 || !isTokenReady(tokens[1])}
+                        disabled={transferInProgress?.token2 || !isTokenReady(tokens[1])}
                         style={{ 
-                            opacity: transferInProgress || transferStatus.token2 ? 0.6 : 1,
-                            cursor: transferInProgress || transferStatus.token2 ? 'not-allowed' : 'text'
+                            opacity: transferInProgress?.token2 ? 0.6 : 1,
+                            cursor: transferInProgress?.token2 ? 'not-allowed' : 'text'
                         }}
                     />
                     <button 
                         className='button' 
                         type='submit' 
-                        disabled={transferInProgress || transferStatus.token2 || !isTokenReady(tokens[1])}
+                        disabled={transferInProgress?.token2 || !isTokenReady(tokens[1])}
                         style={{ 
-                            opacity: transferInProgress || transferStatus.token2 ? 0.6 : 1,
-                            cursor: transferInProgress || transferStatus.token2 ? 'not-allowed' : 'pointer'
+                            opacity: transferInProgress?.token2 ? 0.6 : 1,
+                            cursor: transferInProgress?.token2 ? 'not-allowed' : 'pointer'
                         }}
                     >
                         <span>
-                            {transferStatus.token2 
+                            {transferInProgress?.token2 
                                 ? 'Processing...' 
-                                : transferInProgress 
-                                    ? 'Loading...' 
-                                    : activeTab === 'deposit' ? 'Deposit' : 'Withdraw'
+                                : activeTab === 'deposit' ? 'Deposit' : 'Withdraw'
                             }
                         </span>
                     </button>

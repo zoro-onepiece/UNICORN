@@ -41,9 +41,8 @@ const DEFAULT_EXCHANGE_STATE = {
   cancelledOrders: { data: [] },
   filledOrders: { data: [] },
   events: [],
-  transferInProgress: false
+  transferInProgress: { token1: false, token2: false }  // PER TOKEN!
 }
-
 
 export const tokens = (state = DEFAULT_TOKENS_STATE, action) => {
   switch (action.type) {
@@ -51,7 +50,6 @@ export const tokens = (state = DEFAULT_TOKENS_STATE, action) => {
       return {
         ...state,
         loaded: true,
-        // Replace index 0, keep index 1 as is
         contracts: [action.token, state.contracts[1]],
         symbols: [action.symbol, state.symbols[1]],
       }
@@ -59,7 +57,6 @@ export const tokens = (state = DEFAULT_TOKENS_STATE, action) => {
       return {
         ...state,
         loaded: true,
-        // Keep index 0 as is, replace index 1
         contracts: [state.contracts[0], action.token],
         symbols: [state.symbols[0], action.symbol]
       }
@@ -77,8 +74,6 @@ export const tokens = (state = DEFAULT_TOKENS_STATE, action) => {
       return state
   }
 }
-
-
 
 export const exchange = (state = DEFAULT_EXCHANGE_STATE, action) => {
   let index, data
@@ -113,25 +108,51 @@ export const exchange = (state = DEFAULT_EXCHANGE_STATE, action) => {
       return { ...state, balances: [state.balances[0] || '0', action.balance] }
 
     // ------------------------------------------------------------------------------
-    // TRANSFERS
+    // TRANSFERS - PER TOKEN!
     case 'TRANSFER_REQUEST':
+      // action.tokenIndex should be 0 for URON (token1), 1 for mETH (token2)
+      const tokenIndex = action.tokenIndex
       return {
         ...state,
-        transferInProgress: true,
-        transaction: { transactionType: 'Transfer', isPending: true, isSuccessful: false }
+        transferInProgress: {
+          ...state.transferInProgress,
+          [tokenIndex === 0 ? 'token1' : 'token2']: true
+        },
+        transaction: { 
+          transactionType: 'Transfer', 
+          isPending: true, 
+          isSuccessful: false 
+        }
       }
+      
     case 'TRANSFER_SUCCESS':
       return {
         ...state,
-        transferInProgress: false,
-        transaction: { transactionType: 'Transfer', isPending: false, isSuccessful: true },
+        transferInProgress: {
+          token1: false,
+          token2: false
+        },
+        transaction: { 
+          transactionType: 'Transfer', 
+          isPending: false, 
+          isSuccessful: true 
+        },
         events: [action.event, ...state.events]
       }
+      
     case 'TRANSFER_FAIL':
       return {
         ...state,
-        transferInProgress: false,
-        transaction: { transactionType: 'Transfer', isPending: false, isSuccessful: false, isError: true }
+        transferInProgress: {
+          token1: false,
+          token2: false
+        },
+        transaction: { 
+          transactionType: 'Transfer', 
+          isPending: false, 
+          isSuccessful: false, 
+          isError: true 
+        },
       }
 
     // ------------------------------------------------------------------------------
@@ -139,7 +160,11 @@ export const exchange = (state = DEFAULT_EXCHANGE_STATE, action) => {
     case 'NEW_ORDER_REQUEST':
       return {
         ...state,
-        transaction: { transactionType: 'New Order', isPending: true, isSuccessful: false },
+        transaction: { 
+          transactionType: 'New Order', 
+          isPending: true, 
+          isSuccessful: false 
+        },
       }
     case 'NEW_ORDER_SUCCESS':
       // Prevent duplicate orders
@@ -152,14 +177,108 @@ export const exchange = (state = DEFAULT_EXCHANGE_STATE, action) => {
       return {
         ...state,
         allOrders: { ...state.allOrders, data },
-        transaction: { transactionType: 'New Order', isPending: false, isSuccessful: true },
+        transaction: { 
+          transactionType: 'New Order', 
+          isPending: false, 
+          isSuccessful: true 
+        },
         events: [action.event, ...state.events]
       }
     case 'NEW_ORDER_FAIL':
       return {
         ...state,
-        transaction: { transactionType: 'New Order', isPending: false, isSuccessful: false, isError: true },
+        transaction: { 
+          transactionType: 'New Order', 
+          isPending: false, 
+          isSuccessful: false, 
+          isError: true 
+        },
       }
+
+    // ------------------------------------------------------------------------------
+    // CANCEL ORDERS
+    case 'ORDER_CANCEL_REQUEST':
+      return {
+        ...state,
+        transaction: { 
+          transactionType: 'Cancel Order', 
+          isPending: true, 
+          isSuccessful: false 
+        },
+      }
+    case 'ORDER_CANCEL_SUCCESS':
+      // Remove from allOrders and add to cancelledOrders
+      const cancelledOrder = action.order
+      const updatedAllOrders = state.allOrders.data.filter(
+        order => order.id.toString() !== cancelledOrder.id.toString()
+      )
+      return {
+        ...state,
+        allOrders: { ...state.allOrders, data: updatedAllOrders },
+        cancelledOrders: { 
+          ...state.cancelledOrders, 
+          data: [...state.cancelledOrders.data, cancelledOrder] 
+        },
+        transaction: { 
+          transactionType: 'Cancel Order', 
+          isPending: false, 
+          isSuccessful: true 
+        },
+        events: [action.event, ...state.events]
+      }
+    case 'ORDER_CANCEL_FAIL':
+      return {
+        ...state,
+        transaction: { 
+          transactionType: 'Cancel Order', 
+          isPending: false, 
+          isSuccessful: false, 
+          isError: true 
+        },
+      }
+
+    // ------------------------------------------------------------------------------
+    // FILL ORDERS
+    case 'ORDER_FILL_REQUEST':
+      return {
+        ...state,
+        transaction: { 
+          transactionType: 'Fill Order', 
+          isPending: true, 
+          isSuccessful: false 
+        },
+      }
+    case 'ORDER_FILL_SUCCESS':
+      // Remove from allOrders and add to filledOrders
+      const filledOrder = action.order
+      const remainingOrders = state.allOrders.data.filter(
+        order => order.id.toString() !== filledOrder.id.toString()
+      )
+      return {
+        ...state,
+        allOrders: { ...state.allOrders, data: remainingOrders },
+        filledOrders: { 
+          ...state.filledOrders, 
+          data: [...state.filledOrders.data, filledOrder] 
+        },
+        transaction: { 
+          transactionType: 'Fill Order', 
+          isPending: false, 
+          isSuccessful: true 
+        },
+        events: [action.event, ...state.events]
+      }
+    case 'ORDER_FILL_FAIL':
+      return {
+        ...state,
+        transaction: { 
+          transactionType: 'Fill Order', 
+          isPending: false, 
+          isSuccessful: false, 
+          isError: true 
+        },
+      }
+
     default:
       return state
   }
