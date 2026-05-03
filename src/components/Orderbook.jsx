@@ -1,20 +1,22 @@
 import { useSelector, useDispatch } from 'react-redux'
+import { toast } from 'react-toastify'
 import sort from '../assets/sort.svg'
 import { orderBookSelector } from '../store/selectors'
-// 1. Import the interaction
 import { fillOrder } from '../store/interactions'
 
 const OrderBook = () => {
-  const dispatch = useDispatch() // Need this to send actions
-  
-  // 2. Get required data for filling orders
+  const dispatch = useDispatch()
   const provider = useSelector(state => state.provider.connection)
   const exchange = useSelector(state => state.exchange.contract)
   const symbols = useSelector(state => state.tokens.symbols)
   const orderBook = useSelector(orderBookSelector)
 
-  // 3. Helper function to handle the click
+  const formatData = (num) => {
+    return Number(num).toFixed(4)
+  }
+
   const fillOrderHandler = (order) => {
+    toast.info('Initiating trade... Please confirm in MetaMask.')
     fillOrder(provider, exchange, order, dispatch)
   }
 
@@ -27,7 +29,7 @@ const OrderBook = () => {
       <div className="flex">
 
         {!orderBook || !orderBook.sellOrders || orderBook.sellOrders.length === 0 ? (
-          <p className='flex-center'>No Sell Orders</p>
+          <p className='flex-center' style={{ color: '#767F92' }}>No Sell Orders</p>
         ) : (
           <table className='exchange__orderbook--sell'>
             <caption>Selling</caption>
@@ -41,11 +43,10 @@ const OrderBook = () => {
             <tbody>
               {orderBook.sellOrders.map((order, index) => {
                 return(
-                /* 4. Add the onClick listener here */
                 <tr key={index} onClick={() => fillOrderHandler(order)}>
-                  <td>{order.token0Amount}</td>
-                  <td style={{ color: `${order.orderTypeClass}` }}>{order.tokenPrice}</td>
-                  <td>{order.token1Amount}</td>
+                  <td>{formatData(order.token0Amount)}</td>
+                  <td style={{ color: `${order.orderTypeClass}` }}>{formatData(order.tokenPrice)}</td>
+                  <td>{formatData(order.token1Amount)}</td>
                 </tr>
                 )
               })}
@@ -56,7 +57,7 @@ const OrderBook = () => {
         <div className='divider'></div>
 
        {!orderBook || !orderBook.buyOrders || orderBook.buyOrders.length === 0 ? (
-          <p className='flex-center'>No Buy Orders</p>
+          <p className='flex-center' style={{ color: '#767F92' }}>No Buy Orders</p>
         ) : (
           <table className='exchange__orderbook--buy'>
             <caption>Buying</caption>
@@ -70,11 +71,10 @@ const OrderBook = () => {
             <tbody>
               {orderBook.buyOrders.map((order, index) => {
                 return (
-                  /* 5. Add the onClick listener here as well */
                   <tr key={index} onClick={() => fillOrderHandler(order)}>
-                    <td>{order.token0Amount}</td>
-                    <td style={{ color: `${order.orderTypeClass}` }}>{order.tokenPrice}</td>
-                    <td>{order.token1Amount}</td>
+                    <td>{formatData(order.token0Amount)}</td>
+                    <td style={{ color: `${order.orderTypeClass}` }}>{formatData(order.tokenPrice)}</td>
+                    <td>{formatData(order.token1Amount)}</td>
                   </tr>
                 )
               })}

@@ -258,7 +258,7 @@ export const priceChartSelector = createSelector(
 )
 
 const buildGraphData = (orders) => {
-  orders = groupBy(orders, (o) => moment.unix(Number(o.timestamp)).startOf('hour').format())
+  orders = groupBy(orders, (o) => moment.unix(Number(o.timestamp)).startOf('minute').format())
   const hours = Object.keys(orders)
 
   const graphData = hours.map((hour) => {

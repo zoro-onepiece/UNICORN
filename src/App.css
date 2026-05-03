@@ -22,6 +22,10 @@
 html {
   font-family: "DM Sans";
   color: var(--clr-white);
+  background-color: var(--clr-primary); /* Pura background dark kar de ga */
+  overscroll-behavior-y: none; /* Firefox/Chrome mein bounce effect khatam kar de ga */
+
+  
 }
 
 main {
@@ -799,4 +803,47 @@ table td {
     grid-column-start: 4;
     grid-column-end: 5;
   }
+}
+
+
+/* ------------------------------------------------------ */
+/* -- Professional UX Enhancements -- */
+
+/* Make Inputs feel active when typing */
+input:focus {
+  border: 1px solid var(--clr-blue);
+  box-shadow: 0 0 5px rgba(33, 135, 208, 0.5);
+  transition: all 250ms ease;
+}
+
+/* Improve OrderBook Table Hovers */
+.exchange__orderbook--sell tbody tr,
+.exchange__orderbook--buy tbody tr {
+  transition: background-color 150ms ease;
+}
+
+.exchange__orderbook--sell tbody tr:hover,
+.exchange__orderbook--buy tbody tr:hover {
+  background: #1A2438;
+  cursor: pointer;
+}
+
+/* Prevent double-clicking buttons by dimming disabled ones */
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* Make image alignment seamless */
+img {
+  user-select: none;
+}
+
+/* Toastify Override to match the Dark Theme */
+.Toastify__toast {
+  background-color: var(--clr-secondary) !important;
+  color: var(--clr-white) !important;
+  border-radius: 10px !important;
+  font-family: "DM Sans", sans-serif !important;
 }

@@ -75,7 +75,7 @@ const Navbar = ({ setIsWalletConnected, connectWalletHandler }) => {
     <div className='exchange__header grid'>
       <div className='exchange__header--brand flex'>
         <img src={logo} className="logo" alt="Unicorn Logo" />
-        <h1>🦄 Unicorn Exchange</h1>
+        <h1>Unicorn Exchange</h1>
       </div>
       
       <div className='exchange__header--networks flex'>
