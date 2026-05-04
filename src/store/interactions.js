@@ -101,16 +101,29 @@ export const loadBalances = async (exchange, tokens, account, dispatch) => {
   try {
     if (!exchange || !tokens[0] || !tokens[1] || !account) return;
 
+    // Token 1 Balances
     const token1WalletBalance = await tokens[0].balanceOf(account)
     dispatch({ type: 'TOKEN_1_BALANCE_LOADED', balance: ethers.formatUnits(token1WalletBalance, 18) })
 
-    const token1ExchangeBalance = await exchange.balanceOf(tokens[0].target || tokens[0].address, account)
+    // Safely check if exchange uses 'balanceOf' or 'tokens' mapping
+    let token1ExchangeBalance;
+    if (typeof exchange.balanceOf === 'function') {
+        token1ExchangeBalance = await exchange.balanceOf(tokens[0].target || tokens[0].address, account)
+    } else {
+        token1ExchangeBalance = await exchange.tokens(tokens[0].target || tokens[0].address, account)
+    }
     dispatch({ type: 'EXCHANGE_TOKEN_1_BALANCE_LOADED', balance: ethers.formatUnits(token1ExchangeBalance, 18) })
 
+    // Token 2 Balances
     const token2WalletBalance = await tokens[1].balanceOf(account)
     dispatch({ type: 'TOKEN_2_BALANCE_LOADED', balance: ethers.formatUnits(token2WalletBalance, 18) })
 
-    const token2ExchangeBalance = await exchange.balanceOf(tokens[1].target || tokens[1].address, account)
+    let token2ExchangeBalance;
+    if (typeof exchange.balanceOf === 'function') {
+        token2ExchangeBalance = await exchange.balanceOf(tokens[1].target || tokens[1].address, account)
+    } else {
+        token2ExchangeBalance = await exchange.tokens(tokens[1].target || tokens[1].address, account)
+    }
     dispatch({ type: 'EXCHANGE_TOKEN_2_BALANCE_LOADED', balance: ethers.formatUnits(token2ExchangeBalance, 18) })
 
   } catch (error) {
@@ -120,21 +133,40 @@ export const loadBalances = async (exchange, tokens, account, dispatch) => {
 
 export const loadAllOrders = async (provider, exchange, dispatch) => {
   try {
-    const block = await provider.getBlockNumber()
+    const latestBlock = await provider.getBlockNumber()
+    
+    // Fetch last 150,000 blocks (approx 3 weeks data)
+    const startBlock = Math.max(0, latestBlock - 150000)
 
-    const cancelStream = await exchange.queryFilter('Cancel', 0, block)
+    const fetchEventsInChunks = async (filterName) => {
+      let allEvents = []
+      for (let i = startBlock; i <= latestBlock; i += 40000) {
+        const endBlock = Math.min(i + 39999, latestBlock)
+        try {
+          const chunk = await exchange.queryFilter(filterName, i, endBlock)
+          allEvents = [...allEvents, ...chunk]
+        } catch (error) {
+          console.warn(`Skipping block range ${i} to ${endBlock} due to RPC limit...`)
+        }
+      }
+      return allEvents
+    }
+
+    const cancelStream = await fetchEventsInChunks('Cancel')
+    const tradeStream = await fetchEventsInChunks('Trade')
+    const orderStream = await fetchEventsInChunks('Order')
+
+    // FIX: Added the formatting functions back here!
     const cancelledOrders = cancelStream.map(event => formatEventOrder(event.args))
-    dispatch({ type: 'CANCELLED_ORDERS_LOADED', cancelledOrders })
-
-    const tradeStream = await exchange.queryFilter('Trade', 0, block)
     const filledOrders = tradeStream.map(event => formatTradeOrder(event.args))
-    dispatch({ type: 'FILLED_ORDERS_LOADED', filledOrders })
-
-    const orderStream = await exchange.queryFilter('Order', 0, block)
     const allOrders = orderStream.map(event => formatEventOrder(event.args))
+
+    dispatch({ type: 'CANCELLED_ORDERS_LOADED', cancelledOrders })
+    dispatch({ type: 'FILLED_ORDERS_LOADED', filledOrders })
     dispatch({ type: 'ALL_ORDERS_LOADED', allOrders })
+
   } catch (error) {
-    console.error('Error loading orders:', error)
+    console.error("Error loading orders:", error)
   }
 }
 

@@ -847,3 +847,85 @@ img {
   border-radius: 10px !important;
   font-family: "DM Sans", sans-serif !important;
 }
+
+
+/* =========================================
+   MOBILE RESPONSIVENESS FIXES (ALL PHONES)
+   ========================================= */
+
+@media screen and (max-width: 768px) {
+  /* 1. Main Grid ko Stack karein (Side-by-side se Top-to-bottom) */
+  .exchange.grid {
+    display: flex;
+    flex-direction: column;
+    padding: 10px;
+    gap: 20px;
+  }
+
+  .exchange__section--left.grid,
+  .exchange__section--right.grid {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  /* 2. OrderBook k Dono Tables (Buy/Sell) ko Stack karein */
+  .exchange__orderbook .flex {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  /* 3. Divider (Lakir) ko vertical se horizontal karein */
+  .exchange__orderbook .divider {
+    width: 100%;
+    height: 1px;
+    margin: 10px 0;
+  }
+
+  /* 4. Tables ko overlapping se bachanay k liye scrollable banayen */
+  .exchange__trades table,
+  .exchange__orderbook--buy,
+  .exchange__orderbook--sell,
+  .exchange__transactions table {
+    display: block;
+    width: 100%;
+    overflow-x: auto; /* Agar data lamba ho to horizontal scroll aaye */
+    white-space: nowrap; /* Text ko next line par tootne se roke aur overlap na hone de */
+    -webkit-overflow-scrolling: touch; /* Mobile par smooth scrolling k liye */
+  }
+
+  /* 5. Navbar Adjustments for Mobile */
+  .exchange__header {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    align-items: center;
+    text-align: center;
+    padding: 15px;
+  }
+
+  .exchange__header--account {
+    justify-content: center;
+  }
+
+  /* =========================================
+     6. TABLE CELLS & CANCEL BUTTON FIX
+     ========================================= */
+  
+  /* Tables k andar columns mein thora fasla dain taake text na jurey */
+  .exchange__transactions td,
+  .exchange__trades td,
+  .exchange__orderbook td {
+    padding: 8px 15px; 
+    white-space: nowrap; /* Text ko tootne se rokay */
+  }
+
+  /* Cancel Button ko chota hone se rokein */
+  .exchange__transactions button {
+    min-width: 75px; /* Button is se chota nahi hoga */
+    padding: 5px 10px;
+    white-space: nowrap;
+    text-align: center;
+  }
+}

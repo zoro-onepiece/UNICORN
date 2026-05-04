@@ -52,7 +52,7 @@ const decorateOrder = (order, tokens) => {
     token1Amount: ethers.formatUnits(token1Amount, 18),
     token0Amount: ethers.formatUnits(token0Amount, 18),
     tokenPrice,
-    formattedTimestamp: moment.unix(Number(order.timestamp)).format('h:mm:ssa d MMM D')
+    formattedTimestamp: moment.unix(Number(order.timestamp)).format('h:mm:ssa D MMM YYYY')
   })
 }
 
