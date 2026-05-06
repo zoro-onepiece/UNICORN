@@ -43,7 +43,7 @@ Once you have the tokens, make them visible in MetaMask:
 4. Repeat the process for the **mETH Token Address**.
 
 ### Step 4: Deposit and Trade
-1. Visit the [Live Demo URL].
+1. Visit the https://unicorn-self-kappa.vercel.app/
 2. Click **Connect** in the top right to link your MetaMask wallet.
 3. Go to the **Balance** tab on the left.
 4. **Deposit** your URON and mETH into the Exchange contract (This requires two MetaMask approvals: one to approve the token spend, and one to deposit).
